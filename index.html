@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Guardiões do Agreste — Versão com áreas clicáveis</title>
+
+  <style>
+    :root{
+      /* --- Posições iniciais (em percentual relativo à largura/altura da imagem)
+         Ajuste aqui se precisar alinhar com precisão (valores em %).
+         left% / top% = posição do canto superior esquerdo da área clicável
+         w% / h% = largura/altura da área clicável relativa à largura/altura da imagem.
+      */
+      --wa-left: 55%;   /* WhatsApp: distância da esquerda (em %) */
+      --wa-top: 88%;    /* WhatsApp: distância do topo (em %) */
+      --wa-w: 8%;       /* WhatsApp: largura da área (em %) */
+      --wa-h: 4.5%;     /* WhatsApp: altura da área (em %) */
+
+      --ig-left: 45%;   /* Instagram */
+      --ig-top: 88%;
+      --ig-w: 8%;
+      --ig-h: 4.5%;
+    }
+
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;font-family: "Poppins", Arial, sans-serif; scroll-behavior: smooth; background:#111}
+
+    /* container da imagem */
+    .image-wrap{
+      position: relative;
+      width:100%;
+      max-width:1100px; /* opcional: limitar largura para não ficar gigante em telas muito largas */
+      margin: 0 auto;   /* centraliza horizontalmente */
+      user-select: none;
+    }
+
+    /* a imagem responsiva */
+    .main-image{
+      display:block;
+      width:100%;
+      height:auto;
+    }
+
+    /* áreas clicáveis sobre a imagem — mesmas propriedades para WA e IG */
+    .click-area{
+      position: absolute;
+      display: block; /* importante: ocupa largura/altura */
+      background: rgba(255,255,255,0); /* transparente por padrão */
+      z-index: 30;
+      /* toque/foco acessível */
+      border-radius: 8px;
+      text-decoration: none;
+    }
+
+    /* focos visíveis para acessibilidade */
+    .click-area:focus{
+      outline: 3px solid rgba(255,255,255,0.65);
+      outline-offset: 3px;
+    }
+
+    /* Menu fixo (topo direito) */
+    .menu{
+      position: fixed;
+      top: 18px;
+      right: 20px;
+      z-index: 60;
+      display:flex;
+      gap:12px;
+      padding:8px 12px;
+      background: rgba(0,0,0,0.36);
+      border-radius: 999px;
+      backdrop-filter: blur(4px);
+    }
+    .menu a{
+      color:white;
+      text-decoration:none;
+      font-weight:600;
+      font-size:14px;
+      padding:6px 8px;
+      border-radius:6px;
+    }
+    .menu a:hover{ background: rgba(255,255,255,0.08) }
+
+    /* Seções invisíveis (âncoras) - usamos espaçadores proporcionais à altura da imagem via js */
+    section { width:100%; }
+
+    /* ---- DEBUG helper: descomente para ver as áreas sobre a imagem
+       .click-area { background: rgba(255,0,0,0.25); border: 1px solid rgba(255,0,0,0.5); }
+    */
+
+    @media (max-width:420px){
+      .menu{ right:8px; top:10px; padding:6px 8px }
+      .menu a{ font-size:13px; padding:5px 7px }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Menu -->
+  <nav class="menu" aria-label="Menu principal">
+    <a href="#home" data-target="home">Home</a>
+    <a href="#momentos" data-target="momentos">Momentos</a>
+    <a href="#lideranca" data-target="lideranca">Liderança</a>
+    <a href="#contato" data-target="contato">Contato</a>
+  </nav>
+
+  <!-- Container da imagem -->
+  <div class="image-wrap" id="imageWrap">
+    <img id="mainImage" src="papel.png" alt="Panfleto Guardiões do Agreste" class="main-image" />
+
+    <!-- Áreas clicáveis posicionadas via JS (baseadas nas variáveis CSS percentuais definidas em :root) -->
+    <a id="wa" class="click-area" href="https://wa.me/5582987166775" target="_blank" rel="noopener noreferrer"
+       aria-label="Abrir WhatsApp Guardiões do Agreste"></a>
+
+    <a id="ig" class="click-area" href="https://instagram.com/guardioensdoagreste" target="_blank" rel="noopener noreferrer"
+       aria-label="Abrir Instagram Guardiões do Agreste"></a>
+  </div>
+
+  <!-- Seções âncora (vazias) — o JS irá calcular alturas relativas à imagem para que o menu role até as partes certas -->
+  <main id="anchors">
+    <section id="home"></section>
+    <section id="momentos"></section>
+    <section id="lideranca"></section>
+    <section id="contato"></section>
+  </main>
+
+  <script>
+    (function(){
+      const img = document.getElementById('mainImage');
+      const wrap = document.getElementById('imageWrap');
+      const wa = document.getElementById('wa');
+      const ig = document.getElementById('ig');
+
+      // Lê valores percentuais do :root (variáveis CSS)
+      function getRootVar(name, fallback){
+        const v = getComputedStyle(document.documentElement).getPropertyValue(name);
+        return (v ? parseFloat(v.trim().replace('%','')) : fallback);
+      }
+
+      const waLeftP = getRootVar('--wa-left', 86);
+      const waTopP  = getRootVar('--wa-top', 92);
+      const waWP    = getRootVar('--wa-w', 8);
+      const waHP    = getRootVar('--wa-h', 4.5);
+
+      const igLeftP = getRootVar('--ig-left', 78);
+      const igTopP  = getRootVar('--ig-top', 92);
+      const igWP    = getRootVar('--ig-w', 8);
+      const igHP    = getRootVar('--ig-h', 4.5);
+
+      // Função que posiciona as áreas (chamada ao carregar e sempre que a janela é redimensionada)
+      function positionAreas(){
+        // tamanho exibido da imagem
+        const rect = img.getBoundingClientRect();
+        const displayedW = rect.width;
+        const displayedH = rect.height;
+        const offsetLeft = rect.left + window.pageXOffset;
+        const offsetTop  = rect.top  + window.pageYOffset;
+
+        // transforma % em pixels relativos à imagem exibida
+        function toPxX(p){ return Math.round(displayedW * (p/100)); }
+        function toPxY(p){ return Math.round(displayedH * (p/100)); }
+
+        // WhatsApp
+        const waX = offsetLeft + toPxX(waLeftP);
+        const waY = offsetTop  + toPxY(waTopP);
+        const waW = toPxX(waWP);
+        const waH = toPxY(waHP);
+        // posiciona - usando left/top no container (wrap)
+        wa.style.left = ( (waLeftP) + '%' );
+        wa.style.top  = ( (waTopP) + '%' );
+        wa.style.width = waW + 'px';
+        wa.style.height = waH + 'px';
+        wa.style.transform = 'translate(-50%,-50%)'; // centraliza a área no ponto percentual
+
+        // Instagram
+        const igX = offsetLeft + toPxX(igLeftP);
+        const igY = offsetTop  + toPxY(igTopP);
+        const igW = toPxX(igWP);
+        const igH = toPxY(igHP);
+        ig.style.left = ( (igLeftP) + '%' );
+        ig.style.top  = ( (igTopP) + '%' );
+        ig.style.width = igW + 'px';
+        ig.style.height = igH + 'px';
+        ig.style.transform = 'translate(-50%,-50%)';
+
+        // Ajusta as posições das seções âncora (para que o menu role até pontos relativos da imagem)
+        // Definimos 4 pontos ao longo da altura da imagem: home(0%), momentos(30%), lideranca(60%), contato(95%)
+        const anchors = {
+          home: offsetTop + toPxY(0),
+          momentos: offsetTop + toPxY(20),
+          lideranca: offsetTop + toPxY(38),
+          contato: offsetTop + toPxY(95)
+        };
+
+        // aplica scroll positions ajustando as sections (inserimos um padding-top virtual para cada section)
+        Object.keys(anchors).forEach(id=>{
+          const sec = document.getElementById(id);
+          if(!sec) return;
+          // colocamos a seção numa altura equivalente
+          sec.style.height = '1px';
+          sec.style.display = 'block';
+          // definimos um atributo com a posição, usado pelo scroll handler abaixo
+          sec.dataset.scrollTop = Math.round(anchors[id]);
+        });
+      }
+
+      // Quando imagem carrega, posiciona as áreas
+      if (img.complete) {
+        positionAreas();
+      } else {
+        img.addEventListener('load', positionAreas);
+      }
+      // Reposiciona ao redimensionar
+      window.addEventListener('resize', function(){ positionAreas(); });
+
+      /* Menu: comportamento de rolagem fino
+         Quando o usuário clica em um link do menu, lemos o dataset.scrollTop da seção alvo e rolamos até lá.
+      */
+      document.querySelectorAll('.menu a').forEach(a=>{
+        a.addEventListener('click', function(ev){
+          ev.preventDefault();
+          const targetId = this.dataset.target;
+          const sec = document.getElementById(targetId);
+          if(!sec || !sec.dataset.scrollTop){
+            // fallback para comportamento padrão
+            document.querySelector('#' + targetId)?.scrollIntoView({behavior:'smooth'});
+            return;
+          }
+          const top = parseInt(sec.dataset.scrollTop,10);
+          window.scrollTo({ top: top, behavior: 'smooth' });
+          // atualiza hash sem salto
+          history.replaceState(null, '', '#'+targetId);
+        });
+      });
+
+      // acessibilidade: abrir links no ENTER (já natural) — mantemos padrão
+
+      // DEBUG helper: clique nas áreas loga a posição (remova em produção)
+      wa.addEventListener('click', ()=>{ console.log('WhatsApp clicado'); });
+      ig.addEventListener('click', ()=>{ console.log('Instagram clicado'); });
+
+      // posiciona assim que possível (caso a imagem já esteja carregada)
+      setTimeout(positionAreas, 150);
+    })();
+  </script>
+</body>
+</html>
